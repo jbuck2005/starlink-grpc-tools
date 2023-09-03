@@ -38,9 +38,12 @@ Of the 3 groups below, the grpc scripts are really the only ones being actively 
 
 ### The grpc scripts
 
-This set of scripts includes `dish_grpc_text.py`, `dish_grpc_influx.py`, `dish_grpc_influx2.py`, `dish_grpc_sqlite.py`, and `dish_grpc_mqtt.py`. They mostly support the same functionality, but write their output in different ways. `dish_grpc_text.py` writes data to standard output, `dish_grpc_influx.py` and `dish_grpc_influx2.py` send it to an InfluxDB 1.x and 2.x server, respectively, `dish_grpc_sqlite.py` writes it to a sqlite database, and `dish_grpc_mqtt.py` sends it to a MQTT broker.
+This set of scripts includes `dish_grpc_text.py`, `dish_grpc_influx.py`, `dish_grpc_influx2.py`, `dish_grpc_sqlite.py`, `dish_grpc_mqtt.py`, and `dish_grpc_prometheus.py`. They mostly support the same functionality, but write their output in different ways. `dish_grpc_text.py` writes data to standard output, `dish_grpc_influx.py` and `dish_grpc_influx2.py` send it to an InfluxDB 1.x and 2.x server, respectively, `dish_grpc_sqlite.py` writes it to a sqlite database, and `dish_grpc_mqtt.py` sends it to a MQTT broker. `dish_grpc_prometheus.py` does not write anywhere but will listen for HTTP requests and
+return data in a format Prometheus can scrape.
 
 All these scripts support processing status data and/or history data in various modes. The status data is mostly what appears related to the dish in the Debug Data section of the Starlink app, whereas most of the data displayed in the Statistics page of the Starlink app comes from the history data. Specific status or history data groups can be selected by including their mode names on the command line. Run the scripts with `-h` command line option to get a list of available modes. See the documentation at the top of `starlink_grpc.py` for detail on what each of the fields means within each mode group.
+
+`dish_grpc_prometheus.py` only allows the modes `status`, `usage`, and `alert_detail`.
 
 For example, data from all the currently available status groups can be output by doing:
 ```shell script
@@ -49,12 +52,14 @@ python3 dish_grpc_text.py status obstruction_detail alert_detail
 
 By default, `dish_grpc_text.py` will output in CSV format. You can use the `-v` option to instead output in a (slightly) more human-readable format.
 
-By default, all of these scripts will pull data once, send it off to the specified data backend, and then exit. They can instead be made to run in a periodic loop by passing a `-t` option to specify loop interval, in seconds. For example, to capture status information to a InfluxDB server every 30 seconds, you could do something like this:
+By default, most of these scripts will pull data once, send it off to the specified data backend, and then exit. They can instead be made to run in a periodic loop by passing a `-t` option to specify loop interval, in seconds. For example, to capture status information to a InfluxDB server every 30 seconds, you could do something like this:
 ```shell script
 python3 dish_grpc_influx.py -t 30 [... probably other args to specify server options ...] status
 ```
 
-Some of the scripts (currently only the InfluxDB ones) also support specifying options through environment variables. See details in the scripts for the environment variables that map to options.
+The exception to this is `dish_grpc_prometheus.py`, for which the timing interval is determined by whatever is polling the HTTP page it exports.
+
+Some of the scripts (currently only the InfluxDB and MQTT ones) also support specifying options through environment variables. See details in the scripts for the environment variables that map to options.
 
 #### Bulk history data collection
 
@@ -126,13 +131,13 @@ Possibly more simple examples to come, as the other scripts have started getting
 
 ## Running with Docker
 
-The supported docker image for this project is now the one hosted in the [GitHub Packages repository](https://github.com/sparky8512/starlink-grpc-tools/pkgs/container/starlink-grpc-tools/versions).
+The supported docker image for this project is now the one hosted in the [GitHub Packages repository](https://github.com/sparky8512/starlink-grpc-tools/pkgs/container/starlink-grpc-tools). This is a multi-arch image built for `linux/amd64` (x64_64) and `linux/arm64` (aarch64) docker platforms.
 
 You can get the "latest" image with the following command:
 ```shell script
 docker pull ghcr.io/sparky8512/starlink-grpc-tools
 ```
-This will pull the image tagged as "latest". There should also be images for all recent tagged releases of this project, but those tend to be few and far between, so the most recent one will often be missing some important changes. See the package repository for a full list of tagged images.
+This will pull the image tagged as "latest". There should also be images for all recent tagged releases of this project, but those tend to be few and far between, so the most recent one may be missing some important changes. See the package repository for a full list of tagged images.
 
 You can run it with the following:
 ```shell script
@@ -175,14 +180,14 @@ Commands here should work for debian / ubuntu based distribution
 ```shell
 sudo apt instlall python3-venv
 cd /opt/
-sudo mkdir starlink-grpc-tool
+sudo mkdir starlink-grpc-tools
 sudo chown <your non-root user>
 git clone <git url>
-cd starlink-grpc-tool
+cd starlink-grpc-tools
 python3 -m venv venv
 source venv/bin/activate.sh
 pip3 install -r requirements.txt
-sudo cp systemd/starlink-influx2.service /etc/systemd/starlink-influx2.service
+sudo cp systemd/starlink-influx2.service /etc/systemd/system/starlink-influx2.service
 sudo <your favorite editor> /etc/systemd/system/starlink-influx2.service
 # Set influx url, token, bucket and org
 sudo systemctl enable starlink-influx2
